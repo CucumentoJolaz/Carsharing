@@ -16,7 +16,6 @@ venv/
 # Env — игнорим всё, кроме .env.dev
 .env
 .env.*
-!.env.dev
 !.env.example
 
 # DB
