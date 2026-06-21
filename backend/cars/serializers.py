@@ -2,6 +2,11 @@ from rest_framework import serializers
 from .models import Car, Rental
 
 class CarSerializer(serializers.ModelSerializer):
+    photo = serializers.SerializerMethodField()
+
+    def get_photo(self, obj):
+        return obj.photo.url if obj.photo else None
+
     class Meta:
         model = Car
         fields = '__all__'

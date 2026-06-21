@@ -1,5 +1,6 @@
 Django
 djangorestframework
+drf-nested-routers
 django-cors-headers
 djangorestframework-simplejwt
 psycopg2-binary
@@ -7,4 +8,5 @@ django-redis
 celery
 channels
 channels-redis
+daphne
 Pillow

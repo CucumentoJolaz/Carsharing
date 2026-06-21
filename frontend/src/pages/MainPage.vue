@@ -74,8 +74,9 @@ export default {
 }
 
 .main__menu-img-container {
-  display:flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
   border: 1px solid forestgreen;
   width: 100%;
   aspect-ratio: 350 / 400;
@@ -83,6 +84,9 @@ export default {
   border-radius: 12px;
   transition: transform 0.3s ease;
   cursor: pointer;
+  box-sizing: border-box;
+  padding: 20px;
+  overflow: hidden;
 }
 
 .main__menu-img-container:hover {
@@ -91,8 +95,9 @@ export default {
 
 .main__menu-img {
   width: 100%;
-  height: auto;
-  margin: 20px;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .main__btn {

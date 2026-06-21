@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, viewsets, status
 from rest_framework.decorators import action
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
+from django.db import transaction
 from .models import Car, Rental, Statuses
 from .serializers import CarSerializer, RentalSerializer
 from django.utils import timezone
@@ -50,7 +51,7 @@ class RentalViewSet(viewsets.ModelViewSet):
             return Rental.objects.filter(id=car_pk)
         else:
             return Rental.objects.all()
-
+    @transaction.atomic()
     def create(self, request, *args, **kwargs):
         """
         Create a new rental and book the specified car.
@@ -101,7 +102,9 @@ class RentalViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['post'], url_path='start-inspection')
+    @transaction.atomic()
     def start_inspection(self, request, *args, **kwargs):
+
         rental = self.get_object()
         if rental.status == Statuses.BOOKED.value:
             rental.inspection_started_at = timezone.now()
@@ -132,6 +135,7 @@ class RentalViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, url_path='start-rental', methods=['post'])
+    @transaction.atomic()
     def start_rental(self, request, *args, **kwargs):
         rental = self.get_object()
         if rental.status == Statuses.INSPECTING.value:
@@ -164,6 +168,7 @@ class RentalViewSet(viewsets.ModelViewSet):
 
 
     @action(detail=True, url_path='end-rental', methods=['post'])
+    @transaction.atomic()
     def end_rental(self, request, *args, **kwargs):
         rental = self.get_object()
         if rental.status == Statuses.ACTIVE.value:

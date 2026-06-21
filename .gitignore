@@ -12,8 +12,12 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+backend/static/
+backend/media/car_photos/
+# фотографии для старта
+!media/car_photos/default
 
-# Env — игнорим всё, кроме .env.dev
+# Env — игнорим всё, кроме .env.example
 .env
 .env.*
 !.env.example

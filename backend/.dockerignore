@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.venv/
+venv/
+static/
+media/
+!media/car_photos/default
+.env
+.env.*
+!.env.example
+.git/
+.gitignore
+.idea/
+.vscode/
+*.log
