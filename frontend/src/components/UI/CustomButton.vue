@@ -1,5 +1,5 @@
 <template>
-    <button class="btn">
+  <button class="btn">
     <slot>
 
     </slot>
@@ -25,6 +25,7 @@ export default {
   font-weight: 600;
   cursor: pointer;
 }
+
 .btn:hover {
   background-color: forestgreen;
   border: 1px solid forestgreen;
@@ -35,7 +36,7 @@ export default {
   background-color: #27855a;
 }
 
-.btn:active  {
+.btn:active {
   background-color: #68BA7F;
   transition-duration: 0s;
 }

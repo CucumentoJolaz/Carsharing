@@ -8,6 +8,7 @@ urlpatterns = [
     path('api/v1/trips/', include('trips.urls')),
     path('api/v1/users/', include('users.urls')),
     path('api/v1/analytics/', include('analytics.urls')),
+    path('api-auth/', include('rest_framework.urls', namespace='rest_framework'))
 ]
 
 if settings.DEBUG:

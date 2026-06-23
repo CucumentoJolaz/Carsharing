@@ -11,9 +11,9 @@ from .models import Car, Rental, Statuses
 User = get_user_model()
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # Helpers
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 def make_user(username='testuser', password='testpass123'):
     return User.objects.create_user(username=username, password=password)
@@ -27,9 +27,9 @@ def make_rental(user, car, rental_status=Statuses.BOOKED.value, **kwargs):
     return Rental.objects.create(user=user, car=car, status=rental_status, **kwargs)
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # Base
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class RentalViewSetTestCase(TestCase):
     def setUp(self):
@@ -58,9 +58,9 @@ class RentalViewSetTestCase(TestCase):
         return f'/api/v1/cars/{car_pk}/rentals/{rental_pk}/{action}/'
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # Авторизация
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class AuthenticationTests(RentalViewSetTestCase):
 
@@ -86,9 +86,9 @@ class AuthenticationTests(RentalViewSetTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # create — POST /cars/{car_pk}/rentals/
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class CreateRentalTests(RentalViewSetTestCase):
 
@@ -117,7 +117,7 @@ class CreateRentalTests(RentalViewSetTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_create_rental_inactive_car(self):
-        """Бронирование неактивного автомобиля возвращает 404."""
+        """Запрос аренд неактивного автомобиля возвращает 404."""
         self._auth()
         inactive_car = make_car(active=False, **{'brand': 'Hyundai',
                                                  'model': 'Solaris',
@@ -137,9 +137,9 @@ class CreateRentalTests(RentalViewSetTestCase):
         self.assertEqual(response.json()['data']['new_button_text'], 'Начать осмотр')
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # start-inspection — POST /cars/{car_pk}/rentals/{pk}/start-inspection/
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class StartInspectionTests(RentalViewSetTestCase):
 
@@ -206,9 +206,9 @@ class StartInspectionTests(RentalViewSetTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # start-rental — POST /cars/{car_pk}/rentals/{pk}/start-rental/
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class StartRentalTests(RentalViewSetTestCase):
 
@@ -250,9 +250,9 @@ class StartRentalTests(RentalViewSetTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # end-rental — POST /cars/{car_pk}/rentals/{pk}/end-rental/
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class EndRentalTests(RentalViewSetTestCase):
 
@@ -311,9 +311,9 @@ class EndRentalTests(RentalViewSetTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
-# ---------------------------------------------------------------------------
+# ========================================================================================
 # Полный жизненный цикл (интеграционный)
-# ---------------------------------------------------------------------------
+# ========================================================================================
 
 class FullLifecycleTests(RentalViewSetTestCase):
 

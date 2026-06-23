@@ -3,31 +3,21 @@
     <central-title>Аренда автомобилей</central-title>
 
     <div class="rent__main">
-      <div
-          class="rent__car-list rent__custom-scroll"
-          v-if="!rentalID"
-      >
-        <div
-            v-if="carListDownloaded"
-            v-for="car in cars"
-            v-bind:id=car.id
-            class="rent__car-list-item"
-            v-bind:class="{'rent__car-list-item--active': activeCar === car}"
-            v-on:click="chooseCar(car.id)"
-        >
+      <div class="rent__car-list rent__custom-scroll" v-if="!rentalID">
+        <div v-if="carListDownloaded" v-for="car in cars" :key="car.id" v-bind:id=car.id class="rent__car-list-item"
+          v-bind:class="{ 'rent__car-list-item--active': activeCar === car }" v-on:click="chooseCar(car.id)">
           {{ carListName(car) }}
         </div>
-        <div v-else style="color: red; font-weight: bold;">
-          {{ carListLoadingMessage }}
+        <div v-else class="rent__loading">
+          <div class="rent__spinner"></div>
+          <span>Загрузка автомобилей...</span>
         </div>
       </div>
       <div
-          v-bind:class="rentalID === null ? 'rent__car-info-container--rent-not-active' : 'rent__car-info-container--rent-active'"
-      >
+        v-bind:class="rentalID ? 'rent__car-info-container--rent-active' : 'rent__car-info-container--rent-not-active'">
         <div class="rent__car-info-img">
-          <img
-              v-bind:src="activeCar.photo"
-              class="rent__car-image">
+          <img v-if="activeCar && activeCar.photo" v-bind:src="activeCar.photo" class="rent__car-image">
+          <div v-else class="rent__no-image">Нет фото</div>
         </div>
         <div class="rent__car-info-text">
           <table class="rent__car-info-table">
@@ -53,12 +43,8 @@
       <span class="rent__error-icon">⚠</span>
       {{ errorMessage }}
     </div>
-    <custom-button
-        class="book__btn"
-        :class="buttonColorClass"
-        :disabled="isButtonLocked || errorMessage"
-        @click="handleButtonClick"
-    >
+    <custom-button class="book__btn" :class="buttonColorClass" :disabled="isButtonLocked || errorMessage"
+      @click="handleButtonClick">
       <span v-if="isButtonLocked" class="btn__spinner"></span>
       <span v-else>{{ carActionButtonText }}</span>
     </custom-button>
@@ -67,6 +53,7 @@
 
 <script>
 import axios from 'axios'
+import { carApi, rentalApi } from "@/api/carApi"
 
 export default {
   name: "RentPage",
@@ -77,15 +64,14 @@ export default {
     return {
       cars: [],
       carListDownloaded: false,
-      carListLoadingMessage: 'Подождите, идёт загрузка списка автомобилей',
-      errorMessage: false,
+      errorMessage: null,
 
       activeCar: {},
 
       rentalID: null,
       currentStatus: null, // null, 'booked', 'inspecting', 'active', 'completed'
       carActionButtonText: 'Забронировать автомобиль',
-      isButtonLocked: false,
+      isButtonLocked: true,
     }
   },
   computed: {
@@ -97,6 +83,14 @@ export default {
       if (this.currentStatus === 'completed') return 'btn--book'
       return 'btn--book'
     }
+  },
+  watch: {
+    activeCar: {
+      handler(newActiveCar) {
+            this.isButtonLocked = !newActiveCar || !newActiveCar.id
+        },
+        immediate: true
+    },
   },
   methods: {
     informUserAboutError(error) {
@@ -132,46 +126,54 @@ export default {
     },
     async bookCar() {
       try {
-        const response = await axios.post(`/api/v1/cars/${this.activeCar.id}/rentals/`)
+        const response = await rentalApi.bookCar(this.activeCar.id)
         this.rentalID = response.data.data.rental_id
         this.currentStatus = response.data.data.status
         this.carActionButtonText = response.data.data.new_button_text
       } catch (error) {
         if (error.response?.status === 409) {
-          this.informUserAboutError(error.response.data.detail)
+          const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
+          this.informUserAboutError(message)
+          console.error('Ошибка:', error)
         }
-        console.error('Ошибка при попытке забронировать автомобиль:', error)
+
 
       }
     },
     async startInspection() {
       try {
-        const response = await axios.post(`/api/v1/cars/${this.activeCar.id}/rentals/${this.rentalID}/start-inspection/`)
+        const response = await rentalApi.startInspection(this.activeCar.id, this.rentalID)
         this.rentalID = response.data.data.rental_id
         this.currentStatus = response.data.data.status
         this.carActionButtonText = response.data.data.new_button_text
       } catch (error) {
-        console.error('Ошибка при попытке начать осмотр автомобиля:', error)
+        const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
+        this.informUserAboutError(message)
+        console.error('Ошибка:', error)
       }
     },
     async startRental() {
       try {
-        const response = await axios.post(`/api/v1/cars/${this.activeCar.id}/rentals/${this.rentalID}/start-rental/`)
+        const response = await rentalApi.startRental(this.activeCar.id, this.rentalID)
         this.rentalID = response.data.data.rental_id
         this.currentStatus = response.data.data.status
         this.carActionButtonText = response.data.data.new_button_text
       } catch (error) {
-        console.error('Ошибка при попытке начать аренду автомобиля:', error)
+        const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
+        this.informUserAboutError(message)
+        console.error('Ошибка:', error)
       }
     },
     async endRental() {
       try {
-        const response = await axios.post(`/api/v1/cars/${this.activeCar.id}/rentals/${this.rentalID}/end-rental/`)
+        const response = await rentalApi.endRental(this.activeCar.id, this.rentalID)
         this.rentalID = response.data.data.rental_id
         this.currentStatus = response.data.data.status
         this.carActionButtonText = response.data.data.new_button_text
       } catch (error) {
-        console.error('Ошибка при попытке окончить аренду автомобиля:', error)
+        const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
+        this.informUserAboutError(message)
+        console.error('Ошибка:', error)
       }
     },
     backToCarList() {
@@ -181,7 +183,7 @@ export default {
     },
     async initiateRentalStatusOfUser() {
       try {
-        const response = await axios.get('/api/v1/users/me/rental/')
+        const response = await rentalApi.getCurrentRental()
         const data = response.data
         if (data.data) {
           this.chooseCar(data.data.car)
@@ -193,24 +195,28 @@ export default {
         }
       } catch (error) {
         this.activeCar = this.cars[0]
-        if (error.response?.status === 409) {
+        if (error.response?.status === 404) {
+          // 404 - нет активной аренды - это нормально
+          console.log('Нет активной аренды')
+        } else if (error.response?.status === 409) {
           this.informUserAboutError(error.response.data.detail)
-
+        } else {
+          console.error('Ошибка при проверке аренды:', error)
         }
-        console.error('Ошибка при попытке забронировать автомобиль:', error)
       }
     },
     async getCarList() {
       try {
-        const response = await axios.get('/api/v1/cars?format=json')
+        const response = await carApi.getCars()
         this.cars = response.data
         this.carListDownloaded = true
         if (this.cars.length > 0) {
           await this.initiateRentalStatusOfUser()
         }
       } catch (error) {
-        console.error('Получена ошибка при загрузке списка автомобилей', error)
-        this.informUserAboutError(`Получена ошибка при загрузке списка автомобилей: ${error}`)
+        const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
+        this.informUserAboutError(message)
+        console.error('Ошибка:', error)
       }
     },
   }
@@ -233,7 +239,8 @@ export default {
   display: flex;
   flex-direction: column;
   width: 40%;
-  min-width: 0; /* allow flex child to shrink below content size */
+  min-width: 0;
+  /* allow flex child to shrink below content size */
   overflow-y: scroll;
   overflow-x: hidden;
   height: 60vh;
@@ -275,7 +282,8 @@ export default {
   padding: 0 15px 15px;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* critical: prevents flex child overflow */
+  min-width: 0;
+  /* critical: prevents flex child overflow */
   overflow: hidden;
 }
 
@@ -310,13 +318,15 @@ export default {
 /* ── Info table ────────────────────────────────────────── */
 .rent__car-info-text {
   width: 100%;
-  font-size: clamp(0.9rem, 2.5vw, 1.25rem); /* fluid font instead of fixed x-large */
+  font-size: clamp(0.9rem, 2.5vw, 1.25rem);
+  /* fluid font instead of fixed x-large */
   box-sizing: border-box;
 }
 
 .rent__car-info-table {
   width: 100%;
-  table-layout: fixed; /* columns respect their container width */
+  table-layout: fixed;
+  /* columns respect their container width */
   border-collapse: collapse;
 }
 
@@ -476,6 +486,33 @@ export default {
   .book__btn {
     height: 52px;
     font-size: 0.95rem;
+  }
+}
+
+.rent__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 0;
+  gap: 10px;
+}
+
+.rent__spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid forestgreen;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
   }
 }
 </style>

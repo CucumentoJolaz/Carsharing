@@ -22,7 +22,7 @@
       <div class="main__menu-item">
         <div
             class="main__menu-img-container"
-            @click="GoToAnalyticsPage"
+            @click="goToAnalyticsPage"
         >
           <img
               src='/src/images/analytics-main-1.png'
@@ -31,7 +31,7 @@
         </div>
         <custom-button
             class="main__btn"
-            @click="GoToAnalyticsPage"
+            @click="goToAnalyticsPage"
         >
           Аналитика
         </custom-button>
@@ -49,7 +49,7 @@ export default {
       this.isMenuOpen = false // AppHeader.vue
       this.$router.push('/rent')
     },
-    GoToAnalyticsPage() {
+    goToAnalyticsPage() {
       this.isMenuOpen = false // AppHeader.vue
       this.$router.push('/analytics')
     }

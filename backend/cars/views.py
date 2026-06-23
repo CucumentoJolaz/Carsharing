@@ -9,6 +9,10 @@ from django.utils import timezone
 from django.http import Http404
 
 class CarViewSet(viewsets.ModelViewSet):
+    """
+    Стандартный ModelViewSet для Car объекта.
+    
+    """
     queryset = Car.objects.filter(active=True)
     serializer_class = CarSerializer
     permission_classes = (permissions.IsAuthenticated,)
@@ -44,13 +48,28 @@ class RentalViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Obtain list of Rentals for the specific Car defined by Car id.
-        If Car id is not defined - return the whole Rental list.
+        If Car id is not defined - return 400 error.
         """
         car_pk = self.kwargs.get('car_pk')
+        
         if car_pk:
-            return Rental.objects.filter(id=car_pk)
+            car = Car.objects.get(id=car_pk)
+            if car.active:
+                return Rental.objects.filter(id=car_pk)
+            else:
+                raise Http404()
         else:
-            return Rental.objects.all()
+            return Response({
+            'type': f'/problems/no-car-id',
+            'title': f'Нет id для арендуемой машины',
+            'status': status.HTTP_400_BAD_REQUEST,
+            'detail':
+                (f'Вы направили запрос на получение аренд автомобиля, но не указали id автомобиля.'),
+            'instance': f'{self.request.build_absolute_uri()}'
+        },
+            status=status.HTTP_400_BAD_REQUEST,
+            content_type='application/problem+json')
+        
     @transaction.atomic()
     def create(self, request, *args, **kwargs):
         """
@@ -87,6 +106,8 @@ class RentalViewSet(viewsets.ModelViewSet):
 
 
         car = get_object_or_404(Car, pk=self.kwargs.get('car_pk'))
+        if not car.active:
+            raise Http404(f"Машина под номером {car.id} не является активной для аренды.")
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=False)
         rental = serializer.save(car=car, user=request.user, status=Statuses.BOOKED.value)

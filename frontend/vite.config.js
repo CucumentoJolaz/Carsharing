@@ -13,7 +13,7 @@ export default defineConfig({
                 target: 'http://localhost:8000',
                 changeOrigin: true
             },
-            'admin': {
+            '/admin': {
                 target: 'http://localhost:8000',
                 changeOrigin: true,
             },
@@ -21,11 +21,11 @@ export default defineConfig({
                 target: 'ws://localhost:8000',
                 ws: true
             },
-            'media': {
+            '/media': {
                 target: 'http://localhost:8000',
                 changeOrigin: true,
             },
-            'static': {
+            '/static': {
                 target: 'http://localhost:8000',
                 changeOrigin: true,
             },
