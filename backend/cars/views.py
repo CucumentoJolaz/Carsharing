@@ -47,7 +47,8 @@ class RentalViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Obtain list of Rentals for the specific Car defined by Car id.
+        POST /api/v1/cars/{car_pk}/rentals/          — создать бронь (BOOKED)
+        Возвращаем список аренд для автомобиля с указанным в url car_id
         If Car id is not defined - return 400 error.
         """
         car_pk = self.kwargs.get('car_pk')
