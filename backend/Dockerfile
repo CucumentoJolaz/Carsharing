@@ -11,8 +11,8 @@ WORKDIR /build
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        libpq-dev \
+    build-essential \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -39,10 +39,12 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=app:app . .
 
-RUN mkdir -p static media \
+RUN mkdir -p static media logs \
+    && touch logs/django.log \  
+    && chown -R app:app static media logs \  
+    && chmod 775 logs/django.log \           
     && sed -i 's/\r$//' docker-entrypoint.sh \
-    && chmod +x docker-entrypoint.sh \
-    && chown -R app:app static media
+    && chmod +x docker-entrypoint.sh
 
 USER app
 
