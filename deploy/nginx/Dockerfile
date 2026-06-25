@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-
+# Настраиваем образ. Работаем с папкой frontend. Генерируем файлы для сёрва.
 FROM node:22-alpine AS frontend-build
 
 WORKDIR /app
@@ -11,6 +11,7 @@ COPY frontend/ ./
 RUN npm run build
 
 
+# настраиваем nginx как reverse proxy . Работа с папкой deploy
 FROM nginx:1.27-alpine
 
 RUN apk add --no-cache curl \

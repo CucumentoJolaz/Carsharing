@@ -46,6 +46,7 @@ services:
     volumes:
       - static_data:/app/static
       - media_data:/app/media
+      - logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
@@ -63,6 +64,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   nginx:
     build:
@@ -89,3 +95,5 @@ volumes:
   redis_data:
   static_data:
   media_data:
+  logs:
+  
