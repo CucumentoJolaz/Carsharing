@@ -3,17 +3,18 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.utils import timezone
+from datetime import timedelta
 import logging
-
-from .models import Car, Rental, Statuses
+import time
+from cars.models import Car, Rental, Statuses
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+logging.disable(logging.CRITICAL)
 
-
-# ========================================================== #
+# ==========================================================  #
 #  Helpers                                                    #
-# ========================================================== #
+# ==========================================================  #
 
 def make_user(username: str = 'testuser', password: str = 'testpass123') -> User:
     return User.objects.create_user(username=username, password=password)
@@ -38,9 +39,9 @@ def make_rental(user: User, car: Car, rental_status: str = Statuses.BOOKED.value
     return Rental.objects.create(user=user, car=car, status=rental_status, **kwargs)
 
 
-# ========================================================== #
+# =========================================================== #
 #  Base                                                       #
-# ========================================================== #
+# =========================================================== #
 
 class RentalViewSetTestCase(TestCase):
     """
@@ -49,6 +50,8 @@ class RentalViewSetTestCase(TestCase):
     """
 
     def setUp(self) -> None:
+        self.now = timezone.now()
+        
         self.client = APIClient()
         self.user = make_user()
         self.other_user = make_user(username='otheruser')
@@ -97,7 +100,7 @@ class AuthenticationTests(RentalViewSetTestCase):
 
     def test_start_rental_requires_auth(self) -> None:
         """Неавторизованный POST на начало аренды возвращает 403."""
-        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value, booked_at = self.now, inspection_started_at=self.now + timedelta(milliseconds=1))
         logger.debug("test_start_rental_requires_auth | rental_id=%s", rental.pk)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'start-rental'))
         logger.debug("Ответ | status=%s", response.status_code)
@@ -105,7 +108,7 @@ class AuthenticationTests(RentalViewSetTestCase):
 
     def test_end_rental_requires_auth(self) -> None:
         """Неавторизованный POST на завершение аренды возвращает 403."""
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(minutes=10))
         logger.debug("test_end_rental_requires_auth | rental_id=%s", rental.pk)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
         logger.debug("Ответ | status=%s", response.status_code)
@@ -170,7 +173,7 @@ class CreateRentalTests(RentalViewSetTestCase):
     def test_create_rental_conflict_if_active_rental_exists(self) -> None:
         """Если у пользователя есть активная аренда, повторный POST возвращает 409."""
         self._auth()
-        existing = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        existing = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(minutes=10))
         logger.debug(
             "test_create_rental_conflict | existing_rental_id=%s status=%s",
             existing.pk, existing.status,
@@ -185,7 +188,7 @@ class CreateRentalTests(RentalViewSetTestCase):
     def test_create_rental_conflict_body_contains_existing_rental_id(self) -> None:
         """Тело 409 содержит ID существующей активной аренды."""
         self._auth()
-        existing = make_rental(self.user, self.car, rental_status=Statuses.BOOKED.value, booked_at=timezone.now())
+        existing = make_rental(self.user, self.car, rental_status=Statuses.BOOKED.value, booked_at=timezone.now() + timedelta(minutes=10))
         second_car = make_car(license_plate='C002CC')
         response = self.client.post(self._url_list(second_car.pk), {})
         logger.debug(
@@ -239,7 +242,7 @@ class StartInspectionTests(RentalViewSetTestCase):
     def test_start_inspection_wrong_status_returns_409(self) -> None:
         """Попытка начать осмотр у не-BOOKED аренды возвращает 409."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(minutes=10))
         logger.debug(
             "test_start_inspection_wrong_status | rental_id=%s current_status=%s",
             rental.pk, rental.status,
@@ -251,7 +254,7 @@ class StartInspectionTests(RentalViewSetTestCase):
     def test_start_inspection_409_content_type(self) -> None:
         """409 возвращается с content-type application/problem+json."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(minutes=10))
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'start-inspection'))
         logger.debug(
             "test_start_inspection_409_content_type | Content-Type=%s",
@@ -262,7 +265,7 @@ class StartInspectionTests(RentalViewSetTestCase):
     def test_start_inspection_409_contains_current_status(self) -> None:
         """Тело 409 содержит текущий статус аренды."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(minutes=10))
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'start-inspection'))
         detail = response.json()['detail']
         logger.debug("test_start_inspection_409_detail | detail=%s", detail)
@@ -292,12 +295,18 @@ class StartInspectionTests(RentalViewSetTestCase):
 # ========================================================== #
 
 class StartRentalTests(RentalViewSetTestCase):
-
+    """
+    Тестируем переход из состояния осмотра в состояние начала аренды
+    /start-rental/
+    """
+    
+    
     def test_start_rental_happy_path(self) -> None:
         """Переход INSPECTING → ACTIVE возвращает 200 и статус ACTIVE."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value, inspection_started_at=timezone.now() + timedelta(milliseconds=1))
         logger.debug("test_start_rental_happy_path | rental_id=%s", rental.pk)
+        time.sleep(0.005)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'start-rental'))
         logger.debug("Ответ | status=%s body=%s", response.status_code, response.json())
 
@@ -307,7 +316,8 @@ class StartRentalTests(RentalViewSetTestCase):
     def test_start_rental_updates_db(self) -> None:
         """После перехода start_time заполнен и статус ACTIVE в базе."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value, inspection_started_at=timezone.now() + timedelta(milliseconds=1))
+        time.sleep(0.005)
         self.client.post(self._url_action(self.car.pk, rental.pk, 'start-rental'))
         rental.refresh_from_db()
         logger.debug(
@@ -320,7 +330,8 @@ class StartRentalTests(RentalViewSetTestCase):
     def test_start_rental_button_text(self) -> None:
         """Текст кнопки после начала аренды — 'Окончить аренду'."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value)
+        rental = make_rental(self.user, self.car, rental_status=Statuses.INSPECTING.value, inspection_started_at=timezone.now() + timedelta(milliseconds=1))
+        time.sleep(0.005)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'start-rental'))
         button_text = response.json()['data']['new_button_text']
         logger.debug("test_start_rental_button_text | button_text=%s", button_text)
@@ -367,7 +378,8 @@ class EndRentalTests(RentalViewSetTestCase):
     def test_end_rental_happy_path(self) -> None:
         """Переход ACTIVE → COMPLETED возвращает 200 и статус COMPLETED."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(milliseconds=1))
+        time.sleep(0.005)
         logger.debug("test_end_rental_happy_path | rental_id=%s", rental.pk)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
         logger.debug("Ответ | status=%s body=%s", response.status_code, response.json())
@@ -378,7 +390,8 @@ class EndRentalTests(RentalViewSetTestCase):
     def test_end_rental_updates_db(self) -> None:
         """После завершения end_time заполнен и статус COMPLETED в базе."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(milliseconds=1))
+        time.sleep(0.005)
         self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
         rental.refresh_from_db()
         logger.debug(
@@ -391,7 +404,8 @@ class EndRentalTests(RentalViewSetTestCase):
     def test_end_rental_response_contains_started_and_ended_at(self) -> None:
         """Ответ содержит и started_at и ended_at."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(milliseconds=1))
+        time.sleep(0.005)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
         data = response.json()['data']
         logger.debug("test_end_rental_timestamps | started_at=%s ended_at=%s",
@@ -402,7 +416,8 @@ class EndRentalTests(RentalViewSetTestCase):
     def test_end_rental_button_text(self) -> None:
         """Текст кнопки после завершения — 'Вернуться к списку автомобилей'."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(milliseconds=1))
+        time.sleep(0.005)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
         button_text = response.json()['data']['new_button_text']
         logger.debug("test_end_rental_button_text | button_text=%s", button_text)
@@ -411,7 +426,7 @@ class EndRentalTests(RentalViewSetTestCase):
     def test_end_rental_wrong_status_returns_409(self) -> None:
         """Попытка завершить BOOKED аренду возвращает 409."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.BOOKED.value, booked_at=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.BOOKED.value)
         logger.debug(
             "test_end_rental_wrong_status | rental_id=%s current_status=%s",
             rental.pk, rental.status,
@@ -431,7 +446,8 @@ class EndRentalTests(RentalViewSetTestCase):
     def test_end_rental_idempotency(self) -> None:
         """Повторный вызов end-rental на COMPLETED возвращает 409."""
         self._auth()
-        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now())
+        rental = make_rental(self.user, self.car, rental_status=Statuses.ACTIVE.value, start_time=timezone.now() + timedelta(milliseconds=5))
+        time.sleep(0.005)
         self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
         logger.debug("test_end_rental_idempotency | повторный вызов rental_id=%s", rental.pk)
         response = self.client.post(self._url_action(self.car.pk, rental.pk, 'end-rental'))
