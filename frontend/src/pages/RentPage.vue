@@ -1,12 +1,12 @@
 <template>
   <central-window>
-    <central-title>Аренда автомобилей</central-title>
+    <central-title>{{ title }}</central-title>
 
     <div class="rent__main">
       <div class="rent__car-list rent__custom-scroll" v-if="!rentalID">
         <div v-if="carListDownloaded" v-for="car in cars" :key="car.id" v-bind:id=car.id class="rent__car-list-item"
           v-bind:class="{ 'rent__car-list-item--active': activeCar === car }" v-on:click="chooseCar(car.id)">
-          {{ carListName(car) }}
+          {{ carName(car) }}
         </div>
         <div v-else class="rent__loading">
           <div class="rent__spinner"></div>
@@ -22,6 +22,10 @@
         <div class="rent__car-info-text">
           <table class="rent__car-info-table">
             <tbody>
+              <tr>
+                <th><span v-if="timerName">{{ timerName }}</span></th>
+                <td><span v-if="timerColorClass" class="timer" v-bind:class="timerColorClass">{{ formattedTimer }}</span></td>
+              </tr>
               <tr>
                 <th>Название автомобиля</th>
                 <td>{{ activeCar.brand }} {{ activeCar.model }}</td>
@@ -55,9 +59,13 @@
 import axios from 'axios'
 import { carApi, rentalApi } from "@/api/carApi"
 
+
+
+
 export default {
   name: "RentPage",
   mounted() {
+    // Инициализация компонента RentPage.vue данными с backend
     this.getCarList()
   },
   data() {
@@ -67,36 +75,56 @@ export default {
       errorMessage: null,
 
       activeCar: {},
-
       rentalID: null,
       currentStatus: null, // null, 'booked', 'inspecting', 'active', 'completed'
       carActionButtonText: 'Забронировать автомобиль',
       isButtonLocked: true,
+      timerValue: null,
+      timerInterval: null,
     }
   },
   computed: {
-    buttonColorClass() {
-      if (!this.currentStatus) return 'btn--book'
-      if (this.currentStatus === 'booked') return 'btn--inspect'
-      if (this.currentStatus === 'inspecting') return 'btn--rental'
-      if (this.currentStatus === 'active') return 'btn--end'
-      if (this.currentStatus === 'completed') return 'btn--book'
-      return 'btn--book'
+    statusConfig() {
+      const carName = this.carName(this.activeCar)
+      const configs = {
+        booked: { title: `Активная бронь: ${carName}`, btn: 'btn--inspect', timerClass: 'timer--booked', timerName: 'Время до окончания бронирования:'},
+        inspecting: { title: `Осмотр автомобиля: ${carName}`, btn: 'btn--rental', timerClass: 'timer--inspecting', timerName: 'Время до окончания срока осмотра:' },
+        active: { title: `Активная аренда: ${carName}`, btn: 'btn--end', timerClass: 'timer--active', timerName: 'Время аренды:' },
+        completed: { title: `Аренда ${carName} завершена!`, btn: 'btn--book', timerClass: 'timer--completed', timerName: 'Общее время аренды:' },
+      }
+      return configs[this.currentStatus] ?? { title: 'Аренда автомобилей', btn: 'btn--book', timerClass: null, timerName: null  }
+    },
+
+    title() { return this.statusConfig.title },
+    buttonColorClass() { return this.statusConfig.btn },
+    timerColorClass() { return this.statusConfig.timerClass },
+    timerName() {return this.statusConfig.timerName},
+
+    formattedTimer() {
+      if (!this.timerValue) { return null }
+
+      const whole_time_seconds = this.timerValue
+      const hours = Math.floor(whole_time_seconds / 3600).toString().padStart(2, '0')
+      const minutes = Math.floor((whole_time_seconds % 3600) / 60).toString().padStart(2, '0')
+      const seconds = (whole_time_seconds % 60).toString().padStart(2, '0')
+      return whole_time_seconds >= 3600 ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`
     }
   },
   watch: {
+    // Вотчер который следит что если нет выбранной отдельной машины - пользователь
+    // не имеет возможности как-либо взаимодействовать через кнопку аренды с сайтом
     activeCar: {
       handler(newActiveCar) {
-            this.isButtonLocked = !newActiveCar || !newActiveCar.id
-        },
-        immediate: true
+        this.isButtonLocked = !newActiveCar || !newActiveCar.id
+      },
+      immediate: true
     },
   },
   methods: {
     informUserAboutError(error) {
       this.errorMessage = error
     },
-    carListName(car) {
+    carName(car) {
       return `${car.brand} ${car.model} (${car.year})`
     },
     chooseCar(chosenCarID) {
@@ -111,65 +139,29 @@ export default {
         this.isButtonLocked = false
       }
     },
-    async changeRentalStatus() {
-      if (!this.currentStatus) {
-        await this.bookCar()
-      } else if (this.currentStatus === 'booked') {
-        await this.startInspection()
-      } else if (this.currentStatus === 'inspecting') {
-        await this.startRental()
-      } else if (this.currentStatus === 'active') {
-        await this.endRental()
-      } else if (this.currentStatus === 'completed') {
-        this.backToCarList()
-      }
-    },
-    async bookCar() {
-      try {
-        const response = await rentalApi.bookCar(this.activeCar.id)
-        this.rentalID = response.data.data.rental_id
-        this.currentStatus = response.data.data.status
-        this.carActionButtonText = response.data.data.new_button_text
-      } catch (error) {
-        if (error.response?.status === 409) {
-          const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
-          this.informUserAboutError(message)
-          console.error('Ошибка:', error)
-        }
+    async changeRentalStatus(cancel = null) {
 
 
+      if (this.currentStatus === 'completed' || this.currentStatus === 'booked' && cancel === 'cancel') {
+        return this.backToCarList()
       }
-    },
-    async startInspection() {
+
+      const actions = {
+        null: () => rentalApi.bookCar(this.activeCar.id),
+        booked: () => rentalApi.startInspection(this.activeCar.id, this.rentalID),
+        inspecting: () => rentalApi.startRental(this.activeCar.id, this.rentalID),
+        active: () => rentalApi.endRental(this.activeCar.id, this.rentalID),
+      }
+
+      const apiCall = actions[this.currentStatus]
+      if (!apiCall) return
+
       try {
-        const response = await rentalApi.startInspection(this.activeCar.id, this.rentalID)
+        const response = await apiCall()
         this.rentalID = response.data.data.rental_id
         this.currentStatus = response.data.data.status
         this.carActionButtonText = response.data.data.new_button_text
-      } catch (error) {
-        const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
-        this.informUserAboutError(message)
-        console.error('Ошибка:', error)
-      }
-    },
-    async startRental() {
-      try {
-        const response = await rentalApi.startRental(this.activeCar.id, this.rentalID)
-        this.rentalID = response.data.data.rental_id
-        this.currentStatus = response.data.data.status
-        this.carActionButtonText = response.data.data.new_button_text
-      } catch (error) {
-        const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
-        this.informUserAboutError(message)
-        console.error('Ошибка:', error)
-      }
-    },
-    async endRental() {
-      try {
-        const response = await rentalApi.endRental(this.activeCar.id, this.rentalID)
-        this.rentalID = response.data.data.rental_id
-        this.currentStatus = response.data.data.status
-        this.carActionButtonText = response.data.data.new_button_text
+        this.initTimer(60000)//data.data?.timer_seconds)
       } catch (error) {
         const message = error.response?.data?.detail || 'Произошла ошибка. Попробуйте снова.'
         this.informUserAboutError(message)
@@ -179,6 +171,7 @@ export default {
     backToCarList() {
       this.rentalID = null
       this.currentStatus = null
+      this.initTimer(null)
       this.carActionButtonText = 'Забронировать автомобиль'
     },
     async initiateRentalStatusOfUser() {
@@ -190,6 +183,7 @@ export default {
           this.rentalID = data.data.id
           this.currentStatus = data.data.status
           this.carActionButtonText = data.data.button_text
+          this.initTimer(600)//data.data?.timer_seconds)
         } else {
           this.activeCar = this.cars[0]
         }
@@ -219,6 +213,49 @@ export default {
         console.error('Ошибка:', error)
       }
     },
+    initTimer(seconds) {
+      this.stopTimer()
+      // Передаём data параметр для обработки и показывания секунд
+      this.timerValue = seconds
+
+      if (this.currentStatus === 'booked') {
+        this.startTimer(() => this.changeRentalStatus('cancel'))
+
+      } else if (this.currentStatus === 'inspecting') {
+        this.startTimer(() => changeRentalStatus())
+
+      } else if (this.currentStatus === 'active') {
+        this.startStopwatch()
+
+      } else if (this.currentStatus === 'completed') {
+        // просто выставляем значение, таймер не запускаем
+      }
+    },
+    // onEnd - функция вызываемая по окончанию таймера
+    startTimer(onEnd) {
+      this.timerInterval = setInterval(() => {
+        this.timerValue--
+        if (this.timerValue <= 0) {
+          this.stopTimer()
+          onEnd()
+        }
+      }, 1000)
+    },
+
+    stopTimer() {
+      clearInterval(this.timerInterval)
+      this.timerInterval = null
+    },
+
+    startStopwatch() {
+      this.timerInterval = setInterval(() => {
+        this.timerValue++
+      }, 1000)
+    },
+
+  },
+  beforeUnmount() {
+    this.stopTimer()
   }
 }
 </script>
@@ -395,13 +432,42 @@ export default {
   background-color: #2a7ba8;
 }
 
-/* Состояние: "Начать аренду" — янтарно-оранжевый */
+/* Состояние: "Начать аренду" — зелёный */
 .btn--rental {
-  background-color: #e8952a;
+  background-color: #27855a;
 }
 
 .btn--rental:hover:not(:disabled) {
-  background-color: #c47010;
+  background-color: #27855a;
+}
+
+.timer {
+  font-weight: 700;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100px;
+  height: 30px;
+  border: 0px;
+  border-radius: 0 6px 0 6px;
+}
+
+.timer--booked {
+  background-color: #2a7ba8;
+
+}
+
+.timer--inspecting {
+  background-color: #27855a;
+}
+
+.timer--active {
+  background-color: #27855a;
+}
+
+.timer--completed {
+  background-color: #27855a;
 }
 
 /* Состояние: "Закончить аренду" — приглушённо-красный */

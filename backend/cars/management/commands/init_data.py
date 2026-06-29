@@ -26,7 +26,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        with_photos = options.get('with_photos', True)
+        with_photos = True
 
         with transaction.atomic():
             self.stdout.write('Наполнение базы данных тестовыми данными...')
@@ -61,7 +61,7 @@ class Command(BaseCommand):
         
         return ''
 
-    def create_cars(self, with_photos=False):
+    def create_cars(self, with_photos=True):
         cars_data = [
             # Ford
             ('Ford', 'Focus', 2022, 'G007GG', 55.7523, 37.6255, 'Москва'),
@@ -133,7 +133,7 @@ class Command(BaseCommand):
             # Привязываем фото, если параметр передан
             if with_photos:
                 photo_path = self.get_photo_path(brand, model)
-                self.stdout.write(f"Расчитанный путь к изображению - {photo_path}")
+                # self.stdout.write(f"Расчитанный путь к изображению - {photo_path}")
                 if not photo_path:
                     raise FileNotFoundError(f'Фото не найдено: {brand} {model}')
                 with open(photo_path, 'rb') as f:

@@ -304,7 +304,7 @@ describe('RentPage', () => {
     test('formats car name correctly', () => {
         const wrapper = mount(RentPage)
         const car = { brand: 'BMW', model: 'X5', year: 2022 }
-        const result = wrapper.vm.carListName(car)
+        const result = wrapper.vm.carName(car)
         expect(result).toBe('BMW X5 (2022)')
     })
 
